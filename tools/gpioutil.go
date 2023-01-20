@@ -6,6 +6,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strconv"
@@ -14,12 +15,14 @@ import (
 	"time"
 
 	"zappem.net/pub/io/gpio"
+	"zappem.net/pub/io/iotracer"
 )
 
 var (
 	gpios = flag.String("gpios", "", "colon separated <device>:<ins>:<outs>")
 	trace = flag.Bool("trace", false, "trace all IO")
 	poll  = flag.Duration("poll", 4*time.Millisecond, "poll interval for sampling inputs")
+	vcd   = flag.String("vcd", "", "name of VCD file for the IO trace of the program [ex. dump.vcd]")
 )
 
 // watcher is a rudimentary tracer abstraction.
@@ -47,8 +50,9 @@ func cycle(ctx context.Context) {
 	}
 	defer b.Close()
 
-	w := &watcher{
-		fmt: "%1b",
+	var tr *iotracer.Trace
+	if *trace && *vcd != "" {
+		tr = iotracer.NewTrace("gpioutil", 100)
 	}
 
 	max := -1
@@ -62,6 +66,9 @@ func cycle(ctx context.Context) {
 		li, err := b.LineInfo(g)
 		if err != nil {
 			log.Fatalf("failed to find GPIO[%d] for input: %v", g, err)
+		}
+		if tr != nil {
+			tr.Label(g, li.Label())
 		}
 		log.Printf("preparing %v for use as input", li)
 		if max < g {
@@ -81,6 +88,9 @@ func cycle(ctx context.Context) {
 		if err != nil {
 			log.Fatalf("failed to find GPIO[%d] for output: %v", g, err)
 		}
+		if tr != nil {
+			tr.Label(g, li.Label())
+		}
 		log.Printf("preparing %v for use as output", li)
 		if max < g {
 			max = g
@@ -90,11 +100,21 @@ func cycle(ctx context.Context) {
 	if max < 0 {
 		log.Fatal("need to list some GPIOs")
 	}
-	w.fmt = fmt.Sprintf("%%0%db", max+1)
+
 	if *trace {
-		b.SetTracer(w)
+		if tr != nil {
+			b.SetTracer(tr)
+		} else {
+			// Use the inlined simple tracer.
+			w := &watcher{
+				fmt: "%1b",
+			}
+			w.fmt = fmt.Sprintf("%%0%db", max+1)
+			b.SetTracer(w)
+		}
 		log.Print("With GPIO tracing:")
 	}
+
 	for _, g := range ins {
 		if err := b.Enable(g, true); err != nil {
 			log.Fatalf("failed to enable %d: %v", g, err)
@@ -117,6 +137,19 @@ func cycle(ctx context.Context) {
 			b.Set(g, on)
 			time.Sleep(500 * time.Millisecond)
 		}
+	}
+
+	if tr != nil {
+		rd, err := tr.VCD(100 * time.Nanosecond)
+		if err != nil {
+			log.Fatalf("unable to generate %q trace: %v", *vcd, err)
+		}
+		f, err := os.Create(*vcd)
+		if err != nil {
+			log.Fatalf("unable to create %q file: %v", *vcd, err)
+		}
+		defer f.Close()
+		io.Copy(f, rd)
 	}
 }
 

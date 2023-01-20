@@ -6,6 +6,10 @@ The `gpio` package provides a native Go interface to the Linux GPIO
 subsystem. The kernel API that the package uses is the _modern_ V2
 character device one.
 
+Automated package documentation for this Go package should be
+available from [![Go
+Reference](https://pkg.go.dev/badge/zappem.net/pub/io/gpio.svg)](https://pkg.go.dev/zappem.net/pub/io/gpio).
+
 ## Getting started
 
 Cross compiling to make a Raspberry Pi binary can be done as follows:
@@ -47,6 +51,41 @@ transitions to `1` after `<17>` is raised to `1` because of the wired
 connection. Similarly, `<10>` lowers after `<17>` is lowered. Without
 that wired connection, `<10>` is unchanged.
 
+The optional argument `--vcd` can be used to generate a VCD trace file
+instead of the simple one shown in the log above. To do this, you use
+the following command line:
+
+```
+pi@mypi:~ $ ./gpioutil --gpios=/dev/gpiochip0:10,9,11:17,27,22 --trace --vcd=dump.vcd
+```
+
+The generated `dump.vcd` file can be viewed with
+[`twave`](https://github.com/tinkerator/twave) or
+[GTKWave](https://gtkwave.sourceforge.net/). In the case of the
+former, the output looks like this:
+
+```
+$ ./twave --file=dump.vcd
+[] : [$version gpioutil $end]
+                  ports.SPI_MISO-+
+                  ports.SPI_MOSI-|-+
+                  ports.SPI_SCLK-|-|-+
+                    ports.GPIO17-|-|-|-+
+                    ports.GPIO22-|-|-|-|-+
+                    ports.GPIO27-|-|-|-|-|-+
+                                 | | | | | |
+2023-01-20 06:43:08.000000000000 0 0 0 0 x x
+2023-01-20 06:43:08.000532600000 0 0 0 0 x x
+2023-01-20 06:43:08.001630300000 0 0 0 0 x x
+2023-01-20 06:43:08.002442900000 0 0 0 1 x x
+2023-01-20 06:43:08.004558200000 0 1 0 1 x x
+2023-01-20 06:43:08.502791800000 0 1 0 1 x 1
+2023-01-20 06:43:09.003463100000 0 1 0 1 1 1
+2023-01-20 06:43:09.504185500000 0 1 0 0 1 1
+2023-01-20 06:43:09.504246500000 0 0 0 0 1 1
+2023-01-20 06:43:10.004856000000 0 0 0 0 1 0
+```
+
 For debugging purposes, I've been using a `HCDC HD040 Ver. 1.0` RPi
 _hat_ which has some helpful LEDs on it to show the state of the
 GPIOs as well as alternate connectors.
@@ -57,9 +96,6 @@ We might consider implementing an alternate backend `gpio.OpenFile()`
 based access model. One that mirrors the `ioctl` based functions with
 the legacy GPIO `/sys/class/gpio` files. However, some experimentation
 with that indicates it is noticeably slower than the more modern one.
-
-We're also thinking about extending the tracing functions in some way
-to help IO application debugging.
 
 ## License info
 
