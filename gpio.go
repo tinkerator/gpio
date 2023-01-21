@@ -433,12 +433,52 @@ func ioctl(f *os.File, cmd uint8, data []byte) error {
 	return err
 }
 
+// refreshInputLocked is called locked and refills the input bits via
+// a kernel call.
+func (b *Bank) refreshInputLocked() {
+	if present := b.f != nil; !present || b.insF == nil {
+		return
+	}
+	ans := LineValues{
+		Mask: b.pollMask,
+	}
+	setter := new(bytes.Buffer)
+	binary.Write(setter, localEndianness, ans)
+	if err := ioctl(b.insF, cmdLineGetValues, setter.Bytes()); err != nil {
+		return
+	}
+	when := time.Now()
+	buf := bytes.NewReader(setter.Bytes())
+	if err := binary.Read(buf, localEndianness, &ans); err != nil {
+		return
+	}
+	var val uint64
+	for m := uint64(1); m <= b.insMask; m <<= 1 {
+		if m&b.insMask == 0 {
+			continue
+		}
+		if ans.Bits&1 != 0 {
+			val |= m
+		}
+		ans.Bits >>= 1
+	}
+	if val == b.ins {
+		return
+	}
+
+	b.ins = val
+	b.insWhen = when
+	if m := b.insMask | b.outsMask; m != 0 && b.tracer != nil {
+		b.tracer.Sample(m, b.ins|b.outs)
+	}
+}
+
 // pollInput periodically samples the input values.
 func (b *Bank) pollInput(ctx context.Context, poll time.Duration) {
 	t := time.NewTicker(poll)
 	defer t.Stop()
 
-	for present := true; present; b.mu.Unlock() {
+	for present := true; present; {
 		select {
 		case <-t.C:
 		case <-ctx.Done():
@@ -446,44 +486,8 @@ func (b *Bank) pollInput(ctx context.Context, poll time.Duration) {
 		}
 
 		b.mu.Lock()
-		if present = b.f != nil; !present {
-			continue
-		}
-		if b.insF == nil {
-			continue // nothing to poll
-		}
-		ans := LineValues{
-			Mask: b.pollMask,
-		}
-		setter := new(bytes.Buffer)
-		binary.Write(setter, localEndianness, ans)
-		if err := ioctl(b.insF, cmdLineGetValues, setter.Bytes()); err != nil {
-			continue
-		}
-		when := time.Now()
-		buf := bytes.NewReader(setter.Bytes())
-		if err := binary.Read(buf, localEndianness, &ans); err != nil {
-			continue
-		}
-		var val uint64
-		for m := uint64(1); m <= b.insMask; m = m << 1 {
-			if m&b.insMask == 0 {
-				continue
-			}
-			if ans.Bits&1 != 0 {
-				val |= m
-			}
-			ans.Bits = ans.Bits >> 1
-		}
-		if val == b.ins {
-			continue
-		}
-
-		b.ins = val
-		b.insWhen = when
-		if m := b.insMask | b.outsMask; m != 0 && b.tracer != nil {
-			b.tracer.Sample(m, b.ins|b.outs)
-		}
+		b.refreshInputLocked()
+		b.mu.Unlock()
 	}
 }
 
@@ -758,7 +762,8 @@ func (b *Bank) Set(g int, on bool) error {
 	return b.setOutsLocked()
 }
 
-// Get reads the current (cached) GPIO value.
+// Get reads the current (cached) GPIO value for outputs and performs
+// a GPIO read for inputs.
 func (b *Bank) Get(g int) (bool, error) {
 	if err := b.valid(g); err != nil {
 		return false, err
@@ -771,8 +776,11 @@ func (b *Bank) Get(g int) (bool, error) {
 	if m&bit == 0 {
 		return false, fmt.Errorf("%d is not enabled in %q bank", g, b.name)
 	}
-	v := b.insMask&b.ins | b.outsMask&b.outs
-	return v&bit != 0, nil
+	if bit&b.outsMask != 0 {
+		return bit&b.outs != 0, nil
+	}
+	b.refreshInputLocked()
+	return bit&b.ins != 0, nil
 }
 
 // SetTracer begins tracing IO with the supplied tracer.
