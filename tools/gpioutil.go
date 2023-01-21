@@ -53,6 +53,7 @@ func cycle(ctx context.Context) {
 	var tr *iotracer.Trace
 	if *trace && *vcd != "" {
 		tr = iotracer.NewTrace("gpioutil", 100)
+		tr.Module("rpi")
 	}
 
 	max := -1
