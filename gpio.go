@@ -779,7 +779,10 @@ func (b *Bank) SetHold(g int) (chan<- bool, error) {
 						}
 						b.outs ^= bit
 						b.setOutsLocked()
-						<-ch
+						// Block until channel closed.
+						for ok {
+							_, ok = <-ch
+						}
 					}
 					return
 				default:
@@ -801,8 +804,8 @@ func (b *Bank) Set(g int, on bool) error {
 	}
 	ch <- on
 	// Getting here, because ch is unbuffered, the SetHold() code
-	// is locked until the write is fully performed. So no
-	// b.Get()s can not see the set bit.
+	// is locked until the write is fully performed. So b.Get()s
+	// only see the bit set.
 	close(ch)
 	return nil
 }
