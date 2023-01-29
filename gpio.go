@@ -708,7 +708,7 @@ func (b *Bank) Enable(g int, on bool) error {
 	if err := b.valid(g); err != nil {
 		return err
 	}
-	bit := uint64(1) << uint(g)
+	bit := uint64(1) << g
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -726,7 +726,7 @@ func (b *Bank) Output(g int, output bool) error {
 	if err := b.valid(g); err != nil {
 		return err
 	}
-	bit := uint64(1) << uint64(g)
+	bit := uint64(1) << g
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -754,7 +754,7 @@ func (b *Bank) SetHold(g int) (chan<- bool, error) {
 	if err := b.valid(g); err != nil {
 		return nil, err
 	}
-	bit := uint64(1) << uint(g)
+	bit := uint64(1) << g
 
 	b.mu.Lock()
 	if b.outsMask&bit == 0 {
@@ -816,7 +816,7 @@ func (b *Bank) Get(g int) (bool, error) {
 	if err := b.valid(g); err != nil {
 		return false, err
 	}
-	bit := uint64(1) << uint(g)
+	bit := uint64(1) << g
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
