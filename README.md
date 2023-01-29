@@ -67,12 +67,12 @@ former, the output looks like this:
 ```
 $ ./twave --file=dump.vcd
 [] : [$version gpioutil $end]
-                    rpi.SPI_MISO-+
-                    rpi.SPI_MOSI-|-+
-                    rpi.SPI_SCLK-|-|-+
-                      rpi.GPIO17-|-|-|-+
-                      rpi.GPIO22-|-|-|-|-+
-                      rpi.GPIO27-|-|-|-|-|-+
+           gpioutil.rpi.SPI_MISO-+
+           gpioutil.rpi.SPI_MOSI-|-+
+           gpioutil.rpi.SPI_SCLK-|-|-+
+             gpioutil.rpi.GPIO17-|-|-|-+
+             gpioutil.rpi.GPIO22-|-|-|-|-+
+             gpioutil.rpi.GPIO27-|-|-|-|-|-+
                                  | | | | | |
 2023-01-21 06:17:06.000000000000 0 0 0 0 x x
 2023-01-21 06:17:06.000582900000 0 0 0 0 x x
