@@ -745,71 +745,6 @@ func (b *Bank) Output(g int, output bool) error {
 	return b.enableRWLocked()
 }
 
-// SetHold locks a GPIO for the purpose of setting it. The set value
-// is provided via returned channel. Once the channel is closed, with
-// or without a value being written, the GPIO is unlocked. This
-// function permits the value to be held until it is changed. If you
-// don't need that behavior, just use Set().
-func (b *Bank) SetHold(g int) (chan<- bool, error) {
-	if err := b.valid(g); err != nil {
-		return nil, err
-	}
-	bit := uint64(1) << g
-
-	b.mu.Lock()
-	if b.outsMask&bit == 0 {
-		b.mu.Unlock()
-		return nil, fmt.Errorf("%d is not write-enabled in %q bank", g, b.name)
-	}
-	ch := make(chan bool) // non buffered to ensure race free locking behavior
-	go func() {
-		for {
-			// enter loop locked
-			if b.setCh == nil {
-				b.setCh = ch
-			}
-			if b.setCh == ch {
-				select {
-				case on, ok := <-ch: // only read while locked.
-					defer b.mu.Unlock()
-					b.setCh = nil
-					if ok {
-						if isOn := b.outs&bit != 0; on == isOn {
-							return // nothing to do
-						}
-						b.outs ^= bit
-						b.setOutsLocked()
-						// Block until channel closed.
-						for ok {
-							_, ok = <-ch
-						}
-					}
-					return
-				default:
-				}
-			}
-			b.mu.Unlock()
-			runtime.Gosched()
-			b.mu.Lock()
-		}
-	}()
-	return ch, nil
-}
-
-// Set sets an output GPIO value atomically.
-func (b *Bank) Set(g int, on bool) error {
-	ch, err := b.SetHold(g)
-	if err != nil {
-		return err
-	}
-	ch <- on
-	// Getting here, because ch is unbuffered, the SetHold() code
-	// is locked until the write is fully performed. So b.Get()s
-	// only see the bit set.
-	close(ch)
-	return nil
-}
-
 // Get reads the current (cached) GPIO value for outputs and performs
 // a GPIO read for inputs.
 func (b *Bank) Get(g int) (bool, error) {
@@ -817,7 +752,6 @@ func (b *Bank) Get(g int) (bool, error) {
 		return false, err
 	}
 	bit := uint64(1) << g
-
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	m := b.insMask | b.outsMask
@@ -829,6 +763,75 @@ func (b *Bank) Get(g int) (bool, error) {
 	}
 	b.refreshInputLocked()
 	return bit&b.ins != 0, nil
+}
+
+// SetHold locks a GPIO for the purpose of setting it. The set value
+// is provided via returned channel. Once the channel is closed, with
+// or without a value being written, the GPIO is unlocked. This
+// function permits the value to be held until it is changed. If you
+// don't need that behavior, just use Set().
+func (b *Bank) SetHold(g int) (chan<- bool, error) {
+	if err := b.valid(g); err != nil {
+		return nil, err
+	}
+	bit := uint64(1) << g
+	ch := make(chan bool) // non buffered to ensure race free locking behavior
+	b.mu.Lock()
+	if b.outsMask&bit == 0 {
+		b.mu.Unlock()
+		return nil, fmt.Errorf("%d is not write-enabled in %q bank", g, b.name)
+	}
+	// Before returning we need to be blocking all changes to gpio
+	// state.  This guarantees that any reads of the gpio state
+	// are not going to change while the caller knows the state is
+	// held.
+	for {
+		if b.setCh == nil {
+			b.setCh = ch
+			break
+		}
+		b.mu.Unlock()
+		runtime.Gosched()
+		b.mu.Lock()
+	}
+	go func() {
+		defer b.mu.Unlock()
+		for {
+			select {
+			case on, ok := <-ch: // only read while locked.
+				b.setCh = nil
+				if ok {
+					if isOn := b.outs&bit != 0; on != isOn {
+						b.outs ^= bit
+						b.setOutsLocked()
+					}
+					// Block until channel closed.
+					for ok {
+						_, ok = <-ch
+					}
+				}
+				return
+			default:
+				b.mu.Unlock()
+				runtime.Gosched()
+				b.mu.Lock()
+			}
+		}
+	}()
+	return ch, nil
+}
+
+// Set sets an output GPIO value atomically.
+func (b *Bank) Set(g int, on bool) error {
+	ch, err := b.SetHold(g)
+	if err == nil {
+		ch <- on
+		// Getting here, because ch is unbuffered, the SetHold() code
+		// is locked until the write is fully performed. So b.Get()s
+		// only see the bit set. Closing ch will unblock that writer.
+		close(ch)
+	}
+	return err
 }
 
 // SetTracer begins tracing IO with the supplied tracer.

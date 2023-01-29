@@ -18,72 +18,71 @@ $ GOARCH=arm GOOS=linux go build tools/gpioutil.go
 ```
 
 On a Raspberry Pi, running the compiled binary, `gpioutil`, on a
-system with only one pair of pins connected (connect pin<10> and
-pin<17>) will generate the indicated output:
+system with only one pair of pins connected (connect pin<18> and
+pin<21>) will generate the indicated output:
 
 ```
-pi@mypi:~ $ ./gpioutil --gpios=/dev/gpiochip0:10,9,11:17,27,22 --trace
-2023/01/17 00:54:38 preparing <10>"SPI_MOSI"[""](unused,active-high,input) for use as input
-2023/01/17 00:54:38 preparing <9>"SPI_MISO"[""](unused,active-high,input) for use as input
-2023/01/17 00:54:38 preparing <11>"SPI_SCLK"[""](unused,active-high,input) for use as input
-2023/01/17 00:54:38 preparing <17>"GPIO17"[""](unused,active-high,output) for use as output
-2023/01/17 00:54:38 preparing <27>"GPIO27"[""](unused,active-high,output) for use as output
-2023/01/17 00:54:38 preparing <22>"GPIO22"[""](unused,active-high,output) for use as output
-2023/01/17 00:54:38 With GPIO tracing:
-2023/01/17 00:54:38 0000000000000000000000000000
-2023/01/17 00:54:38 0000000000000000000000000000
-2023/01/17 00:54:38 0000000000000000000000000000
-2023/01/17 00:54:38 0000000000000000000000000000
-2023/01/17 00:54:38 0000000000000000000000000000
-2023/01/17 00:54:38 0000000000100000000000000000
-2023/01/17 00:54:38 0000000000100000010000000000
-2023/01/17 00:54:38 1000000000100000010000000000
-2023/01/17 00:54:39 1000010000100000010000000000
-2023/01/17 00:54:39 1000010000000000010000000000
-2023/01/17 00:54:39 1000010000000000000000000000
-2023/01/17 00:54:40 0000010000000000000000000000
-2023/01/17 00:54:40 0000000000000000000000000000
+pi@mypi:~ $ ./gpioutil --gpios=/dev/gpiochip0:18,19,20:21,22,23 --trace
+2023/01/29 21:15:13 preparing <18>"GPIO18"[""](unused,active-high,input) for use as input
+2023/01/29 21:15:13 preparing <19>"GPIO19"[""](unused,active-high,input) for use as input
+2023/01/29 21:15:13 preparing <20>"GPIO20"[""](unused,active-high,input) for use as input
+2023/01/29 21:15:13 preparing <21>"GPIO21"[""](unused,active-high,output) for use as output
+2023/01/29 21:15:13 preparing <22>"GPIO22"[""](unused,active-high,output) for use as output
+2023/01/29 21:15:13 preparing <23>"GPIO23"[""](unused,active-high,output) for use as output
+2023/01/29 21:15:13 With GPIO tracing:
+2023/01/29 21:15:13 000000000000000000000000
+2023/01/29 21:15:13 000000000000000000000000
+2023/01/29 21:15:13 000000000000000000000000
+2023/01/29 21:15:13 000000000000000000000000
+2023/01/29 21:15:13 000000000000000000000000
+2023/01/29 21:15:13 001000000000000000000000
+2023/01/29 21:15:13 001001000000000000000000
+2023/01/29 21:15:13 011001000000000000000000
+2023/01/29 21:15:14 111001000000000000000000
+2023/01/29 21:15:14 110001000000000000000000
+2023/01/29 21:15:14 110000000000000000000000
+2023/01/29 21:15:15 100000000000000000000000
+2023/01/29 21:15:15 000000000000000000000000
 ```
 
 Here, the optional `--trace` argument logs the GPIO values
-(`<0>"ID_SDA"` is the right most 0) in this output. Note, `<10>`
-transitions to `1` after `<17>` is raised to `1` because of the wired
-connection. Similarly, `<10>` lowers after `<17>` is lowered. Without
-that wired connection, `<10>` is unchanged.
+(`<0>"ID_SDA"` is the right most 0) in this output. Note, `<18>`
+transitions to `1` after `<21>` is raised to `1` because of the wired
+connection. Similarly, `<18>` lowers after `<21>` is lowered. Without
+that wired connection, `<18>` is unchanged.
 
 The optional argument `--vcd` can be used to generate a VCD trace file
 instead of the simple one shown in the log above. To do this, you use
 the following command line:
 
 ```
-pi@mypi:~ $ ./gpioutil --gpios=/dev/gpiochip0:10,9,11:17,27,22 --trace --vcd=dump.vcd
+pi@mypi:~ $ ./gpioutil --gpios=/dev/gpiochip0:18,19,20:21,22,23 --trace --vcd=dump.vcd
 ```
 
 The generated `dump.vcd` file can be viewed with
 [`twave`](https://github.com/tinkerator/twave) or
 [GTKWave](https://gtkwave.sourceforge.net/). In the case of the
 former, the output looks like this:
-
 ```
-$ ./twave --file=dump.vcd
-[] : [$version gpioutil $end]
-           gpioutil.rpi.SPI_MISO-+
-           gpioutil.rpi.SPI_MOSI-|-+
-           gpioutil.rpi.SPI_SCLK-|-|-+
-             gpioutil.rpi.GPIO17-|-|-|-+
+$ ./twave --file dump.vcd 
+[] : [$version iotracer $end]
+             gpioutil.rpi.GPIO18-+
+             gpioutil.rpi.GPIO19-|-+
+             gpioutil.rpi.GPIO20-|-|-+
+             gpioutil.rpi.GPIO21-|-|-|-+
              gpioutil.rpi.GPIO22-|-|-|-|-+
-             gpioutil.rpi.GPIO27-|-|-|-|-|-+
+             gpioutil.rpi.GPIO23-|-|-|-|-|-+
                                  | | | | | |
-2023-01-21 06:17:06.000000000000 0 0 0 0 x x
-2023-01-21 06:17:06.000582900000 0 0 0 0 x x
-2023-01-21 06:17:06.001638000000 0 0 0 0 x x
-2023-01-21 06:17:06.002246400000 0 0 0 1 x x
-2023-01-21 06:17:06.003310000000 0 1 0 1 x x
-2023-01-21 06:17:06.502585300000 0 1 0 1 x 1
-2023-01-21 06:17:07.002645900000 0 1 0 1 1 1
-2023-01-21 06:17:07.503819800000 0 1 0 0 1 1
-2023-01-21 06:17:07.508072400000 0 0 0 0 1 1
-2023-01-21 06:17:08.004328700000 0 0 0 0 1 0
+2023-01-29 21:17:17.000000000000 0 0 0 0 x x
+2023-01-29 21:17:17.000529100000 0 0 0 0 0 x
+2023-01-29 21:17:17.001610000000 0 0 0 0 0 0
+2023-01-29 21:17:17.002169700000 0 0 0 1 0 0
+2023-01-29 21:17:17.003204900000 1 0 0 1 0 0
+2023-01-29 21:17:17.503313000000 1 0 0 1 1 0
+2023-01-29 21:17:18.004228600000 1 0 0 1 1 1
+2023-01-29 21:17:18.504328800000 1 0 0 0 1 1
+2023-01-29 21:17:18.506733700000 0 0 0 0 1 1
+2023-01-29 21:17:19.004579600000 0 0 0 0 0 1
 ```
 
 For debugging purposes, I've been using a `HCDC HD040 Ver. 1.0` RPi
