@@ -6,6 +6,9 @@ The `gpio` package provides a native Go interface to the Linux GPIO
 subsystem. The kernel API that the package uses is the _modern_ V2
 character device one.
 
+The API provided by this package centers around Get/Set methods for
+GPIO `*Bank`s, Boolean `*Flag` arrays and numerical `*Vector`s.
+
 Automated package documentation for this Go package should be
 available from [![Go
 Reference](https://pkg.go.dev/badge/zappem.net/pub/io/gpio.svg)](https://pkg.go.dev/zappem.net/pub/io/gpio).
