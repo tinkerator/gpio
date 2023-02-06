@@ -12,6 +12,7 @@ import (
 // down the size of generated traces if only one or two bits are used.
 type Flag struct {
 	mu     sync.Mutex
+	alias  string
 	value  uint64
 	mask   uint64
 	setCh  chan bool
@@ -31,12 +32,37 @@ func (f *Flag) Lines() int {
 	return 64
 }
 
+// SetAlias sets a friendly name for the Flag array.
+func (f *Flag) SetAlias(name string) {
+	if f != nil {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		f.alias = name
+	}
+}
+
 // valid confirms a flag index value is valid.
 func (f *Flag) valid(index int) error {
-	if index < 0 || index >= 63 {
+	if f == nil {
+		return fmt.Errorf("invalid flag")
+	}
+	if index < 0 || index >= 64 {
 		return fmt.Errorf("invalid flag index got=%d, want [0,64)", index)
 	}
 	return nil
+}
+
+// Label returns a string name for the indexed flag.
+func (f *Flag) Label(index int) string {
+	if err := f.valid(index); err != nil {
+		return fmt.Sprintf("<bad[%d]: %v>", index, err)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.alias != "" {
+		return fmt.Sprintf("<%s[%d]>", f.alias, index)
+	}
+	return fmt.Sprintf("<FLAG[%d]>", index)
 }
 
 // Get reads the current value of the indexed flag. The index value is

@@ -17,6 +17,13 @@ func TestFlag(t *testing.T) {
 	} else if !v {
 		t.Fatalf("reading flag[1], got=%v want=true", v)
 	}
+	if got := f.Label(1); got != "<FLAG[1]>" {
+		t.Errorf("bad label: got=%q want=\"<FLAG[1]>\"", got)
+	}
+	f.SetAlias("F")
+	if got := f.Label(2); got != "<F[2]>" {
+		t.Errorf("bad label: got=%q want=\"<F[2]>\"", got)
+	}
 }
 
 func TestVector(t *testing.T) {
@@ -32,5 +39,12 @@ func TestVector(t *testing.T) {
 		t.Fatalf("failed to read vec[1]: %v", err)
 	} else if n != 42 {
 		t.Fatalf("reading vec[1], got=%v want=52", n)
+	}
+	if got := v.Label(1); got != "<VECTOR[1]>" {
+		t.Errorf("bad label: got=%q want=\"<R[1]>\"", got)
+	}
+	v.SetAlias("R")
+	if got := v.Label(2); got != "<R[2]>" {
+		t.Errorf("bad label: got=%q want=\"<R[2]>\"", got)
 	}
 }

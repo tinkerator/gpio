@@ -12,6 +12,7 @@ import (
 type Vector struct {
 	mu sync.Mutex
 
+	alias string
 	val   []int64
 	setCh chan int64
 }
@@ -107,4 +108,26 @@ func (v *Vector) Set(index int, value int64) error {
 	ch <- value
 	close(ch)
 	return nil
+}
+
+// SetAlias sets a friendly name for the Flag array.
+func (v *Vector) SetAlias(name string) {
+	if v != nil {
+		v.mu.Lock()
+		defer v.mu.Unlock()
+		v.alias = name
+	}
+}
+
+// Label names the specified index.
+func (v *Vector) Label(index int) string {
+	if err := v.valid(index); err != nil {
+		return fmt.Sprintf("<bad[%d]: %v>", index, err)
+	}
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.alias != "" {
+		return fmt.Sprintf("<%s[%d]>", v.alias, index)
+	}
+	return fmt.Sprintf("<VECTOR[%d]>", index)
 }

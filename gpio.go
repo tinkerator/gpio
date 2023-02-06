@@ -384,6 +384,10 @@ type Bank struct {
 	// mu protects all subsequent fields.
 	mu sync.Mutex
 
+	// alias is a friendly name the caller has added for this
+	// bank. It is used by (*Bank).Label().
+	alias string
+
 	// outs and outsMask capture the most recently written values
 	// of all outputs. The package updates outsWhen when any value
 	// changes. If outsMask is non-zero outsF holds an open file
@@ -574,6 +578,28 @@ func (b *Bank) String() string {
 		return "closed"
 	}
 	return fmt.Sprintf("%q %q (%d)", b.name, b.label, b.lines)
+}
+
+// SetAlias gives this Bank an alias (used by Label()).
+func (b *Bank) SetAlias(name string) {
+	if b != nil {
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		b.alias = name
+	}
+}
+
+// Label names the specified index.
+func (b *Bank) Label(index int) string {
+	if b == nil {
+		return "<nil>"
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.alias != "" {
+		return fmt.Sprintf("<%s[%d]>", b.alias, index)
+	}
+	return fmt.Sprintf("<%s[%d]>", b.name, index)
 }
 
 // LineInfo returns the current configuration of the line, g.
