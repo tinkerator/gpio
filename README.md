@@ -25,7 +25,7 @@ system with only one pair of pins connected (connect pin<18> and
 pin<21>) will generate the indicated output:
 
 ```
-pi@mypi:~ $ ./gpioutil --gpios=/dev/gpiochip0:18,19,20:21,22,23 --trace
+pi@mypi:~ $ ./gpioutil --gpios=/dev/gpiochip0:18,19,20:21,22,23 --trace --pattern
 2023/01/29 21:15:13 preparing <18>"GPIO18"[""](unused,active-high,input) for use as input
 2023/01/29 21:15:13 preparing <19>"GPIO19"[""](unused,active-high,input) for use as input
 2023/01/29 21:15:13 preparing <20>"GPIO20"[""](unused,active-high,input) for use as input
@@ -59,7 +59,7 @@ instead of the simple one shown in the log above. To do this, you use
 the following command line:
 
 ```
-pi@mypi:~ $ ./gpioutil --gpios=/dev/gpiochip0:18,19,20:21,22,23 --trace --vcd=dump.vcd
+pi@mypi:~ $ ./gpioutil --gpios=/dev/gpiochip0:18,19,20:21,22,23 --trace --pattern --vcd=dump.vcd
 ```
 
 The generated `dump.vcd` file can be viewed with
@@ -87,6 +87,8 @@ $ ./twave --file dump.vcd
 2023-01-29 21:17:18.506733700000 0 0 0 0 1 1
 2023-01-29 21:17:19.004579600000 0 0 0 0 0 1
 ```
+
+For a full list of command line options, `./gpioutil --help`.
 
 For debugging purposes, I've been using a `HCDC HD040 Ver. 1.0` RPi
 _hat_ which has some helpful LEDs on it to show the state of the

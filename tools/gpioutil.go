@@ -19,26 +19,35 @@ import (
 )
 
 var (
-	gpios = flag.String("gpios", "", "colon separated <device>:<ins>:<outs>")
-	trace = flag.Bool("trace", false, "trace all IO")
-	poll  = flag.Duration("poll", 4*time.Millisecond, "poll interval for sampling inputs")
-	vcd   = flag.String("vcd", "", "name of VCD file for the IO trace of the program [ex. dump.vcd]")
+	gpios   = flag.String("gpios", "", "colon separated <device>:<ins>:<outs>")
+	trace   = flag.Bool("trace", false, "trace all IO")
+	poll    = flag.Duration("poll", 4*time.Millisecond, "poll interval for sampling inputs")
+	vcd     = flag.String("vcd", "", "name of VCD file for the IO trace of the program [ex. dump.vcd]")
+	tail    = flag.Duration("tail", 5*time.Second, "time to poll for")
+	pattern = flag.Bool("pattern", false, "run a test pattern on gpios")
+	changes = flag.Bool("changes", false, "count the number of IO changes")
 )
 
 // watcher is a rudimentary tracer abstraction.
 type watcher struct {
-	mu  sync.Mutex
-	fmt string
+	mu     sync.Mutex
+	fmt    string
+	sample int
 }
 
 // Sample displays a sample of data.
 func (w *watcher) Sample(mask, value uint64) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	log.Printf(w.fmt, value)
+	if *changes {
+		log.Printf(w.fmt+" %4d", value, w.sample)
+		w.sample++
+	} else {
+		log.Printf(w.fmt, value)
+	}
 }
 
-// cycle performs an experiment on the user specified gpios.
+// cycle watches some IO. If --pattern, it runs a test pattern.
 func cycle(ctx context.Context) {
 	part := strings.Split(*gpios, ":")
 	if len(part) != 3 {
@@ -58,45 +67,49 @@ func cycle(ctx context.Context) {
 
 	max := -1
 	var ins []int
-	for _, v := range strings.Split(part[1], ",") {
-		x, err := strconv.ParseInt(v, 0, 64)
-		if err != nil {
-			log.Fatalf("--gpios=...%q is not an integer: %v", err)
+	if part[1] != "" {
+		for _, v := range strings.Split(part[1], ",") {
+			x, err := strconv.ParseInt(v, 0, 64)
+			if err != nil {
+				log.Fatalf("--gpios=...%q is not an integer: %v", err)
+			}
+			g := int(x)
+			li, err := b.LineInfo(g)
+			if err != nil {
+				log.Fatalf("failed to find GPIO[%d] for input: %v", g, err)
+			}
+			if tr != nil {
+				tr.Label(g, li.Label())
+			}
+			log.Printf("preparing %v for use as input", li)
+			if max < g {
+				max = g
+			}
+			ins = append(ins, g)
 		}
-		g := int(x)
-		li, err := b.LineInfo(g)
-		if err != nil {
-			log.Fatalf("failed to find GPIO[%d] for input: %v", g, err)
-		}
-		if tr != nil {
-			tr.Label(g, li.Label())
-		}
-		log.Printf("preparing %v for use as input", li)
-		if max < g {
-			max = g
-		}
-		ins = append(ins, g)
 	}
 
 	var outs []int
-	for _, v := range strings.Split(part[2], ",") {
-		x, err := strconv.ParseInt(v, 0, 64)
-		if err != nil {
-			log.Fatalf("--gpios=...%q is not an integer: %v", err)
+	if part[2] != "" {
+		for _, v := range strings.Split(part[2], ",") {
+			x, err := strconv.ParseInt(v, 0, 64)
+			if err != nil {
+				log.Fatalf("--gpios=...%q is not an integer: %v", err)
+			}
+			g := int(x)
+			li, err := b.LineInfo(g)
+			if err != nil {
+				log.Fatalf("failed to find GPIO[%d] for output: %v", g, err)
+			}
+			if tr != nil {
+				tr.Label(g, li.Label())
+			}
+			log.Printf("preparing %v for use as output", li)
+			if max < g {
+				max = g
+			}
+			outs = append(outs, g)
 		}
-		g := int(x)
-		li, err := b.LineInfo(g)
-		if err != nil {
-			log.Fatalf("failed to find GPIO[%d] for output: %v", g, err)
-		}
-		if tr != nil {
-			tr.Label(g, li.Label())
-		}
-		log.Printf("preparing %v for use as output", li)
-		if max < g {
-			max = g
-		}
-		outs = append(outs, g)
 	}
 	if max < 0 {
 		log.Fatal("need to list some GPIOs")
@@ -133,11 +146,16 @@ func cycle(ctx context.Context) {
 		}
 	}
 
-	for _, on := range []bool{true, false} {
-		for _, g := range outs {
-			b.Set(g, on)
-			time.Sleep(500 * time.Millisecond)
+	if *pattern {
+		for _, on := range []bool{true, false} {
+			for _, g := range outs {
+				b.Set(g, on)
+
+				time.Sleep(500 * time.Millisecond)
+			}
 		}
+	} else if *tail != 0 {
+		time.Sleep(*tail)
 	}
 
 	if tr != nil {
@@ -156,6 +174,8 @@ func cycle(ctx context.Context) {
 
 func main() {
 	flag.Parse()
+
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -180,5 +200,4 @@ func main() {
 		}
 		b.Close()
 	}
-
 }
